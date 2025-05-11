@@ -1,4 +1,4 @@
-/* import Stripe from 'stripe';
+ import Stripe from 'stripe';
 import { google } from 'googleapis';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -127,6 +127,4 @@ export default async function handler(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
-*/
 
-Commented out webhook temporarily
