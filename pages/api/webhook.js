@@ -80,8 +80,8 @@ async function storeDataInGoogleSheets(formData) {
         formData.additionalConcerns || '',
         formData.goals || '',
         formData.photoCount || '',
-        // Store photo URLs as comma-separated values for formula processing
-        formData.photoUrls ? formData.photoUrls.join(',') : ''
+        // Store photo URLs with each on a separate line
+        formData.photoUrls ? formData.photoUrls.join('\n') : ''
       ]
     ];
     
