@@ -96,6 +96,25 @@ async function storeDataInGoogleSheets(formData) {
       resource: { values },
     });
     
+    // Auto-resize column N to fit the URLs
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      resource: {
+        requests: [
+          {
+            autoResizeDimensions: {
+              dimensions: {
+                sheetId: 0, // First sheet
+                dimension: 'COLUMNS',
+                startIndex: 13, // Column N (0-indexed)
+                endIndex: 14    // Column O (exclusive)
+              }
+            }
+          }
+        ]
+      }
+    });
+    
     console.log('Data stored in Google Sheets successfully');
     console.log('Response:', JSON.stringify(response.data, null, 2));
     return response.data;
