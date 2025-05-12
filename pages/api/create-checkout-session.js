@@ -1,5 +1,4 @@
 import Stripe from 'stripe';
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export default async function handler(req, res) {
@@ -27,16 +26,18 @@ export default async function handler(req, res) {
       productPrice, 
       customerName, 
       customerEmail, 
-      metadata 
+      metadata,
+      success_url,  // Add this
+      cancel_url    // Add this
     } = req.body;
-
+    
     // Validate required fields
     if (!productName || !productPrice || !customerEmail) {
       return res.status(400).json({ 
         error: 'Missing required fields. Please provide productName, productPrice, and customerEmail.' 
       });
     }
-
+    
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -53,15 +54,15 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'payment',
-      success_url: 'https://your-framer-site.com/success',
-      cancel_url: 'https://your-framer-site.com/cancel',
+      success_url: success_url || 'https://your-framer-site.com/success',  // Use the URL from frontend
+      cancel_url: cancel_url || 'https://your-framer-site.com/cancel',      // Use the URL from frontend
       customer_email: customerEmail,
       metadata: {
         customerName: customerName,
         ...metadata, // Include all additional form data as metadata
       },
     });
-
+    
     // Return the checkout URL to the frontend
     console.log('Checkout session created:', session.id);
     res.status(200).json({ checkoutUrl: session.url });
