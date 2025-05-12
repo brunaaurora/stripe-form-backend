@@ -80,9 +80,10 @@ async function storeDataInGoogleSheets(formData) {
         formData.additionalConcerns || '',
         formData.goals || '',
         formData.photoCount || '',
-        // Add photo URLs as a single cell with line breaks
-        // Google Sheets will make each URL clickable when separated by line breaks
-        formData.photoUrls ? formData.photoUrls.join('\n') : ''
+        // Add photo URLs with shortened display text
+        formData.photoUrls ? formData.photoUrls.map((url, index) => 
+          `Photo ${index + 1}: ${url}`
+        ).join('\n\n') : ''
       ]
     ];
     
