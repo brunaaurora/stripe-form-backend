@@ -79,7 +79,9 @@ async function storeDataInGoogleSheets(formData) {
         formData.primaryConcern || '',
         formData.additionalConcerns || '',
         formData.goals || '',
-        formData.photoCount || ''
+        formData.photoCount || '',
+        // Add photo URLs as a single cell with line breaks
+        formData.photoUrls ? formData.photoUrls.join('\n') : ''
       ]
     ];
     
@@ -88,7 +90,7 @@ async function storeDataInGoogleSheets(formData) {
     // Append data to the Google Sheet
     const response = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Sheet1!A:M', // Adjust range as needed
+      range: 'Sheet1!A:N', // Extended to column N for photo URLs
       valueInputOption: 'USER_ENTERED',
       resource: { values },
     });
@@ -154,12 +156,13 @@ export default async function handler(req, res) {
       console.log('Session metadata:', JSON.stringify(session.metadata, null, 2));
       
       // Extract metadata from the session
-      const { customerName, ...formMetadata } = session.metadata;
+      const { customerName, photoUrls, ...formMetadata } = session.metadata;
       
       // Get customer email from the session
       const customerEmail = session.customer_details?.email;
       console.log('Customer email:', customerEmail);
       console.log('Customer name:', customerName);
+      console.log('Photo URLs:', photoUrls);
       
       // Create data object to store/send
       const formData = {
@@ -170,6 +173,8 @@ export default async function handler(req, res) {
         paymentAmount: session.amount_total / 100, // Convert from cents
         timestamp: new Date().toISOString(),
         ...formMetadata,
+        // Convert comma-separated URLs back to an array if needed
+        photoUrls: photoUrls ? photoUrls.split(',') : [],
       };
       
       console.log('Form data created:', JSON.stringify(formData, null, 2));
