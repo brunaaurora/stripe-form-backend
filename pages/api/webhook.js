@@ -1,4 +1,4 @@
-// pages/api/webhook.js
+   // pages/api/webhook.js
 import Stripe from 'stripe';
 import { google } from 'googleapis';
 import { buffer } from 'micro';
@@ -80,10 +80,8 @@ async function storeDataInGoogleSheets(formData) {
         formData.additionalConcerns || '',
         formData.goals || '',
         formData.photoCount || '',
-        // Add photo URLs with shortened display text
-        formData.photoUrls ? formData.photoUrls.map((url, index) => 
-          `Photo ${index + 1}: ${url}`
-        ).join('\n\n') : ''
+        // Add photo URLs as plain URLs - Google Sheets will make them clickable automatically
+        formData.photoUrls ? formData.photoUrls.join('\n') : ''
       ]
     ];
     
