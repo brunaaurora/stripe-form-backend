@@ -1,25 +1,34 @@
 import { google } from 'googleapis';
 
-// Initialize Google Sheets API using the full JSON credentials
-const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || '{}');
-
-const auth = new google.auth.GoogleAuth({
-  credentials: credentials,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
-
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
+    // Debug: Check if environment variables exist
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON is missing');
+    }
+    
+    if (!process.env.GOOGLE_SHEET_ID) {
+      throw new Error('GOOGLE_SHEET_ID is missing');
+    }
+
+    // Initialize Google Sheets API using the full JSON credentials
+    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials: credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
     // Fetch form configuration from Google Sheets
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: 'Form_Config!A2:K11', // Adjust if you have more rows
+      range: 'Form_Config!A2:K11',
     });
 
     const rows = response.data.values || [];
@@ -81,6 +90,12 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Error fetching form config:', error);
-    return res.status(500).json({ error: 'Failed to fetch form configuration' });
+    
+    // Return more detailed error message
+    return res.status(500).json({ 
+      error: 'Failed to fetch form configuration',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
