@@ -4,14 +4,12 @@ import { buffer } from 'micro';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Disable body parsing, we need raw body for webhook signature verification
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Initialize Google Sheets
 const initGoogleSheets = async () => {
   const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || '{}');
   
@@ -46,12 +44,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
   }
 
-  // Handle the event
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     
     try {
-      // Extract metadata
       const metadata = session.metadata || {};
       const timestamp = new Date().toISOString();
       
@@ -61,26 +57,33 @@ export default async function handler(req, res) {
       // Initialize Google Sheets
       const sheets = await initGoogleSheets();
       
-      // Prepare the row data
+      // Get the customer's first and last name
+      const fullName = session.customer_details.name || '';
+      const [firstName, ...lastNameParts] = fullName.split(' ');
+      const lastName = lastNameParts.join(' ');
+      
+      // Prepare the row data - ORDER MUST MATCH YOUR SHEET COLUMNS
       const rowData = [
-        timestamp,                          // Timestamp
-        session.customer_details.name,      // Customer Name
-        session.customer_details.email,     // Email
-        metadata.age || '',                 // Age
-        metadata.primaryConcern || '',      // Primary Concern
-        metadata.additionalConcerns || '',  // Additional Concerns
-        metadata.goals || '',               // Goals
-        session.amount_total / 100,         // Amount (convert from cents)
-        'Paid',                            // Payment Status
-        session.payment_intent,             // Payment Intent ID
-        metadata.photoCount || '0',         // Photo Count
-        photoUrls.join('\n'),              // Photo URLs (each on new line)
+        timestamp,                          // A: Timestamp
+        firstName,                          // B: First Name
+        lastName,                           // C: Last Name
+        session.customer_details.email,     // D: Email
+        metadata.age || '',                 // E: Age
+        metadata.primaryConcern || '',      // F: Primary Concern
+        metadata.additionalConcerns || '',  // G: Additional Concerns
+        metadata.goals || '',               // H: Goals
+        metadata.previousProcedures || '',  // I: Previous Procedures (NEW)
+        session.amount_total / 100,         // J: Amount
+        'Paid',                            // K: Payment Status
+        session.payment_intent,             // L: Payment ID
+        metadata.photoCount || '0',         // M: Photo Count
+        photoUrls.join('\n'),              // N: Photo URLs
       ];
       
-      // Append to Google Sheet
+      // IMPORTANT: Use "stripe" sheet name, not "Sheet1"
       const response = await sheets.spreadsheets.values.append({
         spreadsheetId: process.env.GOOGLE_SHEET_ID,
-        range: 'Sheet1!A:L', // Adjust based on your sheet structure
+        range: 'stripe!A:N', // Updated to use correct sheet name
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         resource: {
@@ -92,10 +95,9 @@ export default async function handler(req, res) {
       
     } catch (error) {
       console.error('Error updating Google Sheet:', error);
-      // Don't return error to Stripe - we still want to acknowledge receipt
+      console.error('Error details:', error.message);
     }
   }
 
-  // Return a 200 response to acknowledge receipt of the event
   res.status(200).json({ received: true });
 }
