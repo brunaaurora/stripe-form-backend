@@ -12,7 +12,7 @@ export const config = {
   },
 };
 
-// Store data in Google Sheets
+// Store data in Google Sheets - DYNAMIC VERSION
 async function storeDataInGoogleSheets(formData) {
   console.log("Starting storeDataInGoogleSheets function");
   console.log("Form data to be stored:", JSON.stringify(formData, null, 2));
@@ -63,39 +63,81 @@ async function storeDataInGoogleSheets(formData) {
       return;
     }
     
-    // Format data for Google Sheets
-    const values = [
-      [
-        formData.timestamp,
-        formData.name,
-        formData.email,
-        formData.paymentStatus,
-        formData.paymentId,
-        formData.paymentAmount,
-        // Add any other form fields
-        formData.preferences || '',
-        formData.notes || '',
-        formData.age || '',
-        formData.primaryConcern || '',
-        formData.additionalConcerns || '',
-        formData.goals || '',
-        formData.photoCount || '',
-        // Store photo URLs with each on a separate line
-        formData.photoUrls ? formData.photoUrls.join('\n') : ''
-      ]
+    // First, get the headers from the first row (if they exist)
+    let headers = [];
+    try {
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'Sheet1!1:1',
+      });
+      
+      headers = headerResponse.data.values?.[0] || [];
+      console.log("Existing headers:", headers);
+    } catch (error) {
+      console.log("No existing headers found, will create them");
+    }
+    
+    // Extract all field names from formData (dynamic approach)
+    const formDataFields = Object.keys(formData).sort();
+    
+    // Create or update headers if needed
+    const requiredHeaders = [
+      'timestamp',
+      'paymentStatus',
+      'paymentId',
+      'paymentAmount',
+      ...formDataFields
     ];
     
-    console.log("Values to append:", JSON.stringify(values));
+    // Deduplicate headers
+    const uniqueHeaders = [...new Set(requiredHeaders)];
+    
+    // If headers don't exist or are incomplete, update them
+    if (headers.length === 0 || !uniqueHeaders.every(h => headers.includes(h))) {
+      headers = uniqueHeaders;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'Sheet1!A1',
+        valueInputOption: 'USER_ENTERED',
+        resource: {
+          values: [headers],
+        },
+      });
+      console.log("Updated headers:", headers);
+    }
+    
+    // Create data row based on header order
+    const rowData = headers.map(header => {
+      switch (header) {
+        case 'timestamp':
+          return formData.timestamp;
+        case 'paymentStatus':
+          return formData.paymentStatus;
+        case 'paymentId':
+          return formData.paymentId;
+        case 'paymentAmount':
+          return formData.paymentAmount;
+        default:
+          // For dynamic fields
+          if (header === 'photoUrls' && Array.isArray(formData[header])) {
+            // Join photo URLs with line breaks
+            return formData[header].join('\n');
+          }
+          return formData[header] || '';
+      }
+    });
+    
+    console.log("Row data to append:", rowData);
     
     // Append data to the Google Sheet
     const response = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Sheet1!A:N', // Extended to column N for photo URLs
+      range: 'Sheet1!A:Z', // Extended range to accommodate dynamic fields
       valueInputOption: 'USER_ENTERED',
-      resource: { values },
+      resource: { values: [rowData] },
     });
     
-    // Auto-resize column N to fit the URLs
+    // Auto-resize all columns
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       resource: {
@@ -105,8 +147,8 @@ async function storeDataInGoogleSheets(formData) {
               dimensions: {
                 sheetId: 0, // First sheet
                 dimension: 'COLUMNS',
-                startIndex: 13, // Column N (0-indexed)
-                endIndex: 14    // Column O (exclusive)
+                startIndex: 0,
+                endIndex: headers.length
               }
             }
           }
@@ -174,27 +216,40 @@ export default async function handler(req, res) {
       console.log('Session ID:', session.id);
       console.log('Session metadata:', JSON.stringify(session.metadata, null, 2));
       
-      // Extract metadata from the session
-      const { customerName, photoUrls, ...formMetadata } = session.metadata;
+      // Extract ALL metadata from the session dynamically
+      const metadata = session.metadata || {};
       
-      // Get customer email from the session
-      const customerEmail = session.customer_details?.email;
+      // Get customer details from the session
+      const customerDetails = session.customer_details;
+      const customerEmail = customerDetails?.email;
+      const customerName = customerDetails?.name || metadata.customerName || 'Unknown';
+      
       console.log('Customer email:', customerEmail);
       console.log('Customer name:', customerName);
-      console.log('Photo URLs:', photoUrls);
       
-      // Create data object to store/send
+      // Create comprehensive data object with all fields
       const formData = {
-        name: customerName,
-        email: customerEmail,
+        // System fields
+        timestamp: new Date().toISOString(),
         paymentStatus: 'completed',
         paymentId: session.payment_intent,
         paymentAmount: session.amount_total / 100, // Convert from cents
-        timestamp: new Date().toISOString(),
-        ...formMetadata,
-        // Convert comma-separated URLs back to an array if needed
-        photoUrls: photoUrls ? photoUrls.split(',') : [],
+        
+        // Customer info
+        name: customerName,
+        email: customerEmail,
+        
+        // All dynamic form fields from metadata
+        ...metadata,
+        
+        // Process photo URLs if they exist
+        photoUrls: metadata.photoUrls ? metadata.photoUrls.split(',') : [],
       };
+      
+      // Remove duplicate or unnecessary fields
+      if (formData.customerName && formData.name === formData.customerName) {
+        delete formData.customerName;
+      }
       
       console.log('Form data created:', JSON.stringify(formData, null, 2));
       console.log('Processing completed payment for:', customerEmail);
